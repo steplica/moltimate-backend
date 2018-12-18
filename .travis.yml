@@ -1,3 +1,23 @@
+sudo: false
 language: java
+services:
+  - docker
+cache:
+  directories:
+  - "${HOME}/google-cloud-sdk/"
 notifications:
   email: false
+env:
+  global:
+    - GCP_HOSTNAME=us.gcr.io
+    - GCP_PROJECT_ID=moltimate
+    - GCP_IMAGE_NAME=moltimate-backend
+    - GCP_CREDENTIALS_FILE=client-secret.json
+    - GIT_ORGANIZATION_NAME=moltimate
+    - GIT_REPO_NAME=moltimate-backend
+before_install:
+  - bin/deploy/travis/before_install.sh
+install:
+  - bin/deploy/travis/install.sh
+after_success:
+  - bin/deploy/travis/after_success.sh

@@ -3,7 +3,7 @@ package org.moltimate.moltimatebackend.service;
 import com.opencsv.CSVReader;
 import com.opencsv.CSVReaderBuilder;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections4.map.MultiKeyMap;
+import org.moltimate.moltimatebackend.model.ActiveSite;
 import org.moltimate.moltimatebackend.model.Residue;
 import org.moltimate.moltimatebackend.util.HttpUtils;
 import org.springframework.stereotype.Service;
@@ -13,9 +13,7 @@ import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Service used to query for or create active site Residues. Also provides the functionality to update our database's
@@ -31,18 +29,18 @@ public class ActiveSiteService {
     /**
      * Retrieve all active sites from the Catalytic Site Atlas.
      *
-     * @return A Map where the String key is a protein's PDB ID and the List<Residue> is each residue in the active site
+     * @return A list of ActiveSites
      */
-    public Map<String, List<Residue>> getActiveSites() {
+    public List<ActiveSite> getActiveSites() {
         try (Reader catalyticSiteAtlasCsvData = new StringReader(HttpUtils.readStringFromURL(CSA_CSV_URL));
              CSVReader csvReader = new CSVReaderBuilder(catalyticSiteAtlasCsvData).withSkipLines(1)
                      .build()
         ) {
-            Map<String, List<Residue>> activeSites = new HashMap<>();
-            List<Residue> nextSite;
+            List<ActiveSite> activeSites = new ArrayList<>();
+
+            ActiveSite nextSite;
             while ((nextSite = readNextActiveSite(csvReader)) != null) {
-                String pdbId = csvReader.peek()[2];
-                activeSites.put(pdbId, nextSite);
+                activeSites.add(nextSite);
             }
 
             return activeSites;
@@ -55,31 +53,34 @@ public class ActiveSiteService {
     }
 
     /**
-     * Reads out the next list of active site Residues from a CSVReader attached to the Catalytic Site Atlas curated data file.
+     * Reads the next protein's active site residues from the Catalytic Site Atlas curated data file.
      */
-    private List<Residue> readNextActiveSite(CSVReader csvReader) throws IOException {
-        String[] residueEntry = csvReader.peek();
-        String pdbId = residueEntry[2];
+    private ActiveSite readNextActiveSite(CSVReader csvReader) throws IOException {
+        List<Residue> activeSiteResidues = new ArrayList<>();
 
-        MultiKeyMap<String, Residue> proteinResidues = new MultiKeyMap<>();
+        String[] residueEntry;
         while ((residueEntry = csvReader.readNext()) != null) {
-            // If this row is a residue (instead of reactant, product, ...), store it in a MultiKeyMap.
-            // A MultikeyMap is used to dedupe residue rows by 1) residueName and 2) residueId.
+            String pdbId = residueEntry[2];
+
             boolean isResidue = "residue".equals(residueEntry[4]);
             if (isResidue) {
-                String residueName = residueEntry[5];
-                String residueId = residueEntry[7];
                 Residue residue = Residue.builder()
-                        .residueName(residueName)
-                        .residueId(residueId)
+                        .residueName(residueEntry[5])
+                        .residueChainName(residueEntry[6])
+                        .residueId(residueEntry[7])
                         .build();
-                proteinResidues.put(residueName, residueId, residue);
+                if (!activeSiteResidues.contains(residue)) {
+                    activeSiteResidues.add(residue);
+                }
             }
 
-            // If the next row is for a different protein, return the current active site Residues
+            // If the next row is the end of file OR start of a different protein, stop and return current Residue list
             String[] nextEntry = csvReader.peek();
-            if (nextEntry != null && !nextEntry[2].equals(pdbId)) {
-                return new ArrayList<>(proteinResidues.values());
+            if (nextEntry == null || !nextEntry[2].equals(pdbId)) {
+                return ActiveSite.builder()
+                        .pdbId(pdbId)
+                        .residues(activeSiteResidues)
+                        .build();
             }
         }
 

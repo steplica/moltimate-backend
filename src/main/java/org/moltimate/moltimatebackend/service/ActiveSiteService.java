@@ -111,9 +111,6 @@ public class ActiveSiteService {
             String pdbId = residueEntry[2];
 
             boolean isResidue = "residue".equals(residueEntry[4]);
-            if (pdbId.equals("1a0j") || pdbId.equals("1rtf")) {
-                System.out.println("yeet");
-            }
             if (isResidue) {
                 Residue residue = Residue.builder()
                         .residueName(residueEntry[5])

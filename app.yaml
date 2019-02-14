@@ -13,6 +13,7 @@ handlers:
     login: optional
     secure: optional
 skip_files:
-  - .git/objects/
+  - .git/
+  - .github/
   - target/
   - moltimate.mv.db
